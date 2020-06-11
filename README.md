@@ -17,14 +17,16 @@ Java is installed then `keytool` will be available as well.
 [Leiningen](https://leiningen.org) dependency information:
 
 ```clj
-[com.bhauman/certifiable "0.0.1"]
+[com.bhauman/certifiable "0.0.1-SNAPSHOT"]
 ```
 
 [clj/deps.edn](https://clojure.org/guides/deps_and_cli) information:
 
 ```clj
-{:deps {com.bhauman/certifiable "0.0.1}}
+{:deps {com.bhauman/certifiable "0.0.1-SNAPSHOT"}}
 ```
+
+This tool was built based on this [excellent shell script](https://gist.github.com/granella/01ba0944865d99227cf080e97f4b3cb6).
 
 ## Quick Start Command Line Usage
 
@@ -33,7 +35,7 @@ Make sure you have the [Clojure tools installed](https://clojure.org/guides/gett
 Then to generate a certificate execute the following:
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1}}' -m certifiable.main
+$ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1-SNAPSHOT"}}' -m certifiable.main
 ```
 
 If this is the first time its been run, this command will create a
@@ -77,7 +79,7 @@ domain (I.E. `example.test`) first make sure you have the domain added it to you
 `/etc/hosts` file. After you have done that you can call:
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1}}' -m certifiable.main -d "example.test,localhost"
+$ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1-SNAPSHOT"}}' -m certifiable.main -d "example.test,localhost"
 ```
 
 That command will generate a new local development certifiable with a
@@ -92,7 +94,7 @@ The default output `.jks` file is `dev-localhost.jks` if you want to
 override that then you can supply a `-o` or `--output` option like so:
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1}}' -m certifiable.main -d "example.test,localhost" -o "dev-example.jks"
+$ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1-SNAPSHOT"}}' -m certifiable.main -d "example.test,localhost" -o "dev-example.jks"
 ```
 
 ### Debugging
@@ -107,7 +109,7 @@ If you get to a point where things aren't working you can use the
 and allow you to start from scratch.
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1}}' -m certifiable.main --reset
+$ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1-SNAPSHOT"}}' -m certifiable.main --reset
 ```
 
 ### Help 
