@@ -310,7 +310,9 @@
 
 (defn emit-keystore [{:keys [keystore-path stable-name]}]
   (when keystore-path
-    (spit keystore-path (slurp (io/file *ca-dir* stable-name *server-keystore-name*)))))
+    (io/copy
+     (io/file *ca-dir* stable-name *server-keystore-name*)
+     (io/file keystore-path))))
 
 #_(clean!)
 #_(create-dev-certificate-jks {})
@@ -330,11 +332,10 @@
           (do (gen-third-party-ca opts)
               (generate-jks-for-domain opts)
               (emit-meta-data opts)
-              (add-trusted-cert! (io/file *ca-dir* stable-name' *root-pem-name*))
-              (emit-keystore opts))
+              (add-trusted-cert! (io/file *ca-dir* stable-name' *root-pem-name*)))
           (log (str "Root certificate and keystore already exists for " (:stable-name opts))))
         ;; TODO print import instructions
-        
+        (emit-keystore opts)
         ))))
 
 
