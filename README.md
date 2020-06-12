@@ -7,9 +7,13 @@ Sometimes you just want a simple way to generate a Java Keystore file
 that you can supply to a Java server so that you can enable HTTPS
 development on your local machine.
 
-Certifiable creates and reuses a single root certificate and chains
-the certificates for each server off of it. This provides the benefit
-of only having to trust the root certificate once.
+Certifiable creates a secure root certificate on your machine that you
+can trust because the root keys get deleted. It then creates a single
+end user certificate and keys in the form of a Java Keystore.
+
+This is much more secure than the various tools that create a single
+root certificate and keep the keys hanging around while importng into
+your local keychain and trust stores.
 
 Certifiable only relies the Java `keytool` command. Assuming that if
 Java is installed then `keytool` will be available as well.
@@ -39,19 +43,20 @@ $ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1-SNAPSHOT"}}' -m certifiable
 ```
 
 If this is the first time its been run, this command will create a
-directory in your home directory `~/.certifiable_dev_certs` and
+directory in your home directory `~/_certifiable` and
 populate it with a root certificate and a ca (certificate authority)
 certificate.
 
-The file `~/.certifiable_dev_certs/dev-root-import-this.pem` needs to
-be trusted by your operating system and Firefox directly in order to
-avoid the not trusted browser warnings.
+The file `~/_certifiable_certs/localhost-1d070e4/dev-root-trust-this.pem` needs
+to be trusted by your operating system and Firefox directly in order
+to avoid the not trusted browser warnings.
 
 On MacOS the above command will ask to have the generated certificate
 imported into your keychain as a trusted certificate.
 
-The command will output a `dev-localhost.jks` file that you can supply
-to a Clojure webserver like `ring.jetty.adapter` like so:
+The command will output a
+`~/_certifiable_certs/localhost-1d070e4/dev-server.jks` file that you
+can supply to a Clojure webserver like `ring.jetty.adapter` like so:
 
 ```clj
 (require '[ring.adapter.jetty :refer [run-jetty]]
@@ -61,7 +66,7 @@ to a Clojure webserver like `ring.jetty.adapter` like so:
    :port 9500
    :ssl? true
    :ssl-port 9533
-   :keystore "dev-localhost.jks"
+   :keystore "[path-to]/dev-server.jks"
    :key-password "password"})
 ```
 

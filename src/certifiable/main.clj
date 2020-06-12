@@ -156,7 +156,7 @@
                      :keypass *password*
                      :keystore ca-keystore-path})
       
-      (log "Generating root certificate")
+      (log (str "Generating root certificate: " root-pem-path))
       ;; generate root certificate
       ;; keytool -exportcert -rfc -keystore root.jks -alias root -storepass password > root.pem
       (->>
