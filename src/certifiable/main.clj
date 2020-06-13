@@ -5,6 +5,10 @@
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
    [certifiable.sha :refer [sha-signature-short]]
+   [certifiable.util :as util :refer [log debug-log]]
+   [certifiable.keytool :refer [keytool keytool?]]
+   [certifiable.macos-trust :as macos-trust]
+   [certifiable.nss-trust :as nss-trust]
    [clojure.pprint])
   (:gen-class))
 
@@ -26,15 +30,6 @@
 (defn dname [{:keys [stable-name]}]
   (format "cn=Certifiable dev root (%s)" stable-name))
 
-(def ^:dynamic *debug* false)
-
-(defn log [s]
-  (println (str "[Certifiable] " s)))
-
-(defn debug-log [s]
-  (when *debug*
-    (println (str "[Certifiable:Debug] " s))))
-
 (defn file-paths [{:keys [stable-name]}]
   {:root-keystore-path (io/file *ca-dir* stable-name *root-keystore-name*)
    :ca-keystore-path (io/file *ca-dir* stable-name *ca-keystore-name*)
@@ -42,78 +37,6 @@
    :ca-pem-path (io/file *ca-dir* stable-name *ca-pem-name*)
    :server-keystore-path (io/file *ca-dir* stable-name *server-keystore-name*)
    :server-pem-path (io/file *ca-dir* stable-name *server-pem-name*)})
-
-(defn os? []
-  (let [os-name
-        (-> (System/getProperty "os.name" "generic")
-            (.toLowerCase java.util.Locale/ENGLISH))
-        has? #(>= (.indexOf %1 %2) 0)]
-    (cond
-      (or (has? os-name "mac")
-          (has? os-name "darwin")) :macos
-      (has? os-name "win") :windows
-      (has? os-name "nux") :linux
-      :else :other)))
-
-(defn keytool? []
-  (try
-    (-> (sh "keytool" "-gencert" "-help") :exit (= 0))
-    (catch java.io.IOException e
-      false)))
-
-(def keytool-keys #{:rfc :noprompt :keystore :ext :keypass :dname :file :storepass
-                    :alias :trustcacerts :keyalg :keysize :validity})
-
-(defn process-args [args]
-  (keep (fn [x] (if (keytool-keys x)
-                  (str "-" (name x))
-                  (when x
-                    (try
-                      (name x)
-                      (catch Throwable e
-                        (str x))))))
-        (if (map? args)
-          (apply concat args)
-          args)))
-
-(defn keytool
-  ([cmd args]
-   (keytool cmd args nil))
-  ([cmd args in]
-   (let [args (cond-> (process-args args)
-                in (concat [:in in]))
-         command-str (string/join
-                      " "
-                      (concat ["keytool" (str "-" (name cmd))]
-                              args))
-         _ (debug-log command-str)
-         res (apply sh "keytool" (str "-" (name cmd))
-                    args)]
-     (when-not (zero? (:exit res))
-       (throw (ex-info "Failed keytool command" (assoc res
-                                                       :command command-str
-                                                       :args args
-                                                       :piped-input in))))
-     res)))
-
-;; add the cert to the keychain
-;; security add-trusted-cert -d -r trustRoot -k ~/Library/Keychains/login.keychain-db root.pem
-
-(defn macos-login-keychain-dir []
-  (let [path (io/file (System/getProperty "user.home") "Library" "Keychains")
-        new-login-chain (io/file path "login.keychain-db")
-        old-login-chain (io/file path "login.keychain")]
-    (cond
-      (.exists new-login-chain) new-login-chain
-      (.exists old-login-chain) new-login-chain
-      :else nil)))
-
-(defn add-trusted-cert! [root-pem-file]
-  (when (= :macos (os?))
-    (when-let [keychain (macos-login-keychain-dir)]
-      (sh "security" "add-trusted-cert" #_"-d" "-r" "trustRoot" "-k"
-          (str keychain)
-          (str root-pem-file)))))
 
 (defn gen-key-pair [args-map]
   (let [base-args (merge {:validity 10000
@@ -310,12 +233,17 @@
 
 (defn emit-keystore [{:keys [keystore-path stable-name]}]
   (when keystore-path
+    (log "Outputing Java Keystore to:" (str keystore-path))
     (io/copy
      (io/file *ca-dir* stable-name *server-keystore-name*)
      (io/file keystore-path))))
 
 #_(clean!)
 #_(create-dev-certificate-jks {})
+
+(defn install-to-trust-stores! [pem-path]
+  (macos-trust/install-trust! pem-path)
+  (nss-trust/install-trust! pem-path))
 
 (defn create-dev-certificate-jks [{:keys [keystore-path domains ips] :as opts}]
   (let [opts (merge {:domains ["localhost" "www.localhost"]
@@ -332,13 +260,13 @@
           (do (gen-third-party-ca opts)
               (generate-jks-for-domain opts)
               (emit-meta-data opts)
-              (add-trusted-cert! (io/file *ca-dir* stable-name' *root-pem-name*)))
-          (log (str "Root certificate and keystore already exists for " (:stable-name opts))))
+              (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*)))
+          (do
+            (log (str "Root certificate and keystore already exists for " (:stable-name opts)))
+            (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*))))
         ;; TODO print import instructions
         (emit-keystore opts)
         ))))
-
-
 
 (def cli-options
   [["-d" "--domains DOMAINS" "A comma seperated list of domains to be included in certificate"
@@ -375,7 +303,7 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
   (let [options (parse-opts args cli-options)
         err? (or (:errors options)
                  (not-empty (:arguments options)))]
-    (binding [*debug* (:verbosity (:options options))
+    (binding [util/*debug* (:verbosity (:options options))
               *out* *err*]
       (debug-log (str "Args:\n"
                       (with-out-str (clojure.pprint/pprint (:options options)))))

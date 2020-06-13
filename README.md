@@ -11,9 +11,10 @@ Certifiable creates a secure root certificate on your machine that you
 can trust because the root keys get deleted. It then creates a single
 end user certificate and keys in the form of a Java Keystore.
 
-This is much more secure than the various tools that create a single
-root certificate and keep the keys hanging around while importng into
-your local keychain and trust stores.
+This is more secure than the various tools that rely on you
+trusting a single root certificate while retaining the roots keys to
+allow the creation of more local certificates. While this is
+convenient it certainly isn't safe.
 
 Certifiable only relies the Java `keytool` command. Assuming that if
 Java is installed then `keytool` will be available as well.
@@ -93,10 +94,10 @@ custom the Subject Alternative Name section that includes both
 
 You can also supply a comma separated list of custom IP addresses with the `-i` or `--ips` option.
 
-### Output file
+### Output Java KeyStore file
 
-The default output `.jks` file is `dev-localhost.jks` if you want to
-override that then you can supply a `-o` or `--output` option like so:
+If you would like to output `.jks` file to a certain path you can
+supply a `-o` or `--output` option like so:
 
 ```sh
 $ clj -Sdeps '{:deps {com.bhauman/certifiable "0.0.1-SNAPSHOT"}}' -m certifiable.main -d "example.test,localhost" -o "dev-example.jks"
