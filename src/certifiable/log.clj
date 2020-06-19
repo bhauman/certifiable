@@ -23,7 +23,8 @@
   (when-let [v (log-levels level)]
     (when (<= (log-levels *log-level*) v)
       (apply *log-fn* (level-tag level)
-             (map str args)))))
+             (map str args))
+      nil)))
 
 (defn info [& args]
   (apply log* :info args))

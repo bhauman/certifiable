@@ -88,9 +88,11 @@
         (log/info "Please install \"certutil\" with \"brew install nss\""))
       (let [uniq-name (pr-str (ca-uniq-name pem-path))]
         (if (has-cert? pem-path)
-          (log/info "Cert" uniq-name "already present in Firefox trust store.")
+          (do (log/info "Cert" uniq-name "already present in Firefox trust store.")
+              true)
           (if (add-cert pem-path)
-            (log/info "Cert" uniq-name "successfully added to Firefox trust store!")
+            (do (log/info "Cert" uniq-name "successfully added to Firefox trust store!")
+                true)
             ;; TODO add output from certutil to inform why it failed?
             (do
               (log/info "FAILED adding" uniq-name "to Firefox trust store!")

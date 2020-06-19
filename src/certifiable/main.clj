@@ -199,12 +199,14 @@
                             :file server-pem-path})
 
       (finally
-        (.delete ca-keystore-path)
-        (.delete ca-pem-path)
-        (.delete server-pem-path)
+        (when (.exists ca-keystore-path)
+          (.delete ca-keystore-path))
+        (when (.exists ca-pem-path)
+          (.delete ca-pem-path))
+        (when (.exists server-pem-path)
+          (.delete server-pem-path))
         (log/info (str "Deleted intermediate certificate authority keys: " ca-keystore-path))))
     (log/info (str  "Generated Java Keystore file: " server-keystore-path))))
-
 
 (defn stable-name [{:keys [keystore-path domains ips] :as opts}]
   (let [domains-ips (concat (sort domains)
@@ -243,10 +245,36 @@
 #_(create-dev-certificate-jks {})
 
 (defn install-to-trust-stores! [pem-path]
-  (macos-trust/install-trust! pem-path)
-  (nss-trust/install-trust! pem-path))
+  {:system-trust-installed
+   (when (= :macos (util/os?))
+     (macos-trust/install-trust! pem-path))
+   :firefox-trust-installed
+   (nss-trust/install-trust! pem-path)})
 
-#_(defn final-instructions [])
+(defn final-instructions [{:keys [keystore-path] :as opts} trust-installed]
+  (let [{:keys [server-keystore-path
+                root-pem-path]} (file-paths opts)
+        path (or keystore-path (str server-keystore-path))
+        {:keys [system-trust-installed
+                firefox-trust-installed]} trust-installed]
+    (str
+     "--------------------------- Setup Instructions ---------------------------\n"
+     "Local dev Java keystore generated at: " path "\n"
+     "The keystore type is: \"JKS\"\n"
+     "The keystore password is: \"" *password* "\"\n"
+     "The root certificate is: " root-pem-path "\n"
+     "For System: root certificate " (if system-trust-installed
+                                       "is trusted"
+                                       "needs to have trust set up") "\n"
+     "For Firefox: root certificate " (if firefox-trust-installed
+                                        "is trusted"
+                                        "needs to have trust set up") "\n"
+     "Example SSL Configuration for ring.jetty.adapter/run-jetty:\n"
+     (with-out-str (clojure.pprint/pprint
+                    {:ssl? true
+                     :ssl-port 9533
+                     :keystore path
+                     :key-password *password*})))))
 
 (defn create-dev-certificate-jks [{:keys [keystore-path domains ips] :as opts}]
   (let [opts (merge {:domains ["localhost" "www.localhost"]
@@ -263,10 +291,12 @@
           (do (gen-third-party-ca opts)
               (generate-jks-for-domain opts)
               (emit-meta-data opts)
-              (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*)))
+              (let [trust-info (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*))]
+                (println (final-instructions opts trust-info))))
           (do
             (log/info (str "Root certificate and keystore already exists for " (:stable-name opts)))
-            (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*))))
+            (let [trust-info (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*))]
+              (println (final-instructions opts trust-info)))))
         ;; TODO print import instructions
         (emit-keystore opts)
         ))))

@@ -60,9 +60,11 @@
       (log/info "\"security\" command is not available so this certificate will not be installed to MacOS login keychain.")
       (let [dname (pr-str (subs (.getName (.getIssuerDN (util/certificate pem-path))) 3))]
         (if (has-cert? pem-path)
-          (log/info "Cert" dname "already present in MacOS login keychain.")
+          (do (log/info "Cert" dname "already present in MacOS login keychain.")
+              true)
           (if (add-cert pem-path)
-            (log/info "Cert" dname "successfully added to MacOS login keychain!")
+            (do (log/info "Cert" dname "successfully added to MacOS login keychain!")
+                true)
             ;; TODO add output from certutil to inform why it failed?
             (do
               (log/info "FAILED adding" dname "to MacOS login keychain!")
