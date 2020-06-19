@@ -7,7 +7,7 @@
    [certifiable.sha :refer [sha-signature-short]]
    [certifiable.util :as util]
    [certifiable.log :as log]
-   [certifiable.keytool :refer [keytool keytool?]]
+   [certifiable.keytool :refer [keytool keytool-cmd]]
    [certifiable.macos-trust :as macos-trust]
    [certifiable.nss-trust :as nss-trust]
    [clojure.pprint])
@@ -127,8 +127,9 @@
                             :alias :ca
                             :file ca-pem-path})
       (finally
-        (.delete root-keystore-path)
-        (log/info (str "Deleted trusted root certificate keys: " root-keystore-path))))))
+        (when (.exists root-keystore-path)
+          (.delete root-keystore-path)
+          (log/info (str "Deleted trusted root certificate keys: " root-keystore-path)))))))
 
 
 (defn domains-and-ips->san [{:keys [domains ips]}]
@@ -220,7 +221,6 @@
     (and (.exists root-pem-path)
          (.exists server-keystore-path))))
 
-
 (defn meta-data [{:keys [domains ips stable-name]}]
   {:created (java.util.Date.)
    :domains domains
@@ -282,7 +282,7 @@
                     opts)
         stable-name' (stable-name opts)
         opts (assoc opts :stable-name stable-name')]
-    (if-not (keytool?)
+    (if-not (keytool-cmd)
       (do
         (log/info "ERROR: Can not find keytool Java command.")
         (println "Please check your Java installation and ensure that keytool is on your path."))

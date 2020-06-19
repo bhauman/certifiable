@@ -1,13 +1,16 @@
 (ns certifiable.keytool
   (:require [clojure.java.shell :refer [sh]]
             [clojure.string :as string]
+            [certifiable.util :as util]
             [certifiable.log :as log]))
 
-(defn keytool? []
-  (try
-    (-> (sh "keytool" "-gencert" "-help") :exit (= 0))
-    (catch java.io.IOException e
-      false)))
+(def keytool-cmd (memoize
+                  (fn []
+                    (if (= (util/os?) :windows)
+                      (and (util/command-exists? "keytool.exe")
+                           "keytool.exe")
+                      (and (util/command-exists? "keytool")
+                           "keytool")))))
 
 (def keytool-keys #{:rfc :noprompt :keystore :ext :keypass :dname :file :storepass
                     :alias :trustcacerts :keyalg :keysize :validity})
@@ -28,21 +31,22 @@
   ([cmd args]
    (keytool cmd args nil))
   ([cmd args in]
-   (let [args (cond-> (process-args args)
-                in (concat [:in in]))
-         command-str (string/join
-                      " "
-                      (concat ["keytool" (str "-" (name cmd))]
-                              args))
-         _ (log/debug command-str)
-         res (apply sh "keytool" (str "-" (name cmd))
-                    args)]
-     (when-not (zero? (:exit res))
-       (throw (ex-info "Failed keytool command" (assoc res
-                                                       :command command-str
-                                                       :args args
-                                                       :piped-input in))))
-     res)))
+   (when (keytool-cmd)
+     (let [args (cond-> (process-args args)
+                  in (concat [:in in]))
+           command-str (string/join
+                        " "
+                        (concat [(keytool-cmd) (str "-" (name cmd))]
+                                args))
+           _ (log/debug command-str)
+           res (apply sh (keytool-cmd) (str "-" (name cmd))
+                      args)]
+       (when-not (zero? (:exit res))
+         (throw (ex-info "Failed keytool command" (assoc res
+                                                         :command command-str
+                                                         :args args
+                                                         :piped-input in))))
+       res))))
 
 #_(defn cert-info [pem-file]
   (:out (keytool :printcert ["-file" (str pem-file)])))
