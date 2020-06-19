@@ -20,15 +20,6 @@
        (.digest (MessageDigest/getInstance  "SHA-1"))
        bytes->hex-str))
 
-(def ^:dynamic *debug* false)
-
-(defn log [& args]
-  (apply println "[Certifiable] " (map str args)))
-
-(defn debug-log [& args]
-  (when *debug*
-    (apply println "[Certifiable:Debug] " (map str args))))
-
 (defn command-exists? [path]
   (boolean
    (try

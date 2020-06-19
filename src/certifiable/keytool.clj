@@ -1,8 +1,7 @@
 (ns certifiable.keytool
   (:require [clojure.java.shell :refer [sh]]
             [clojure.string :as string]
-
-            [certifiable.util :refer [debug-log]]))
+            [certifiable.log :as log]))
 
 (defn keytool? []
   (try
@@ -35,7 +34,7 @@
                       " "
                       (concat ["keytool" (str "-" (name cmd))]
                               args))
-         _ (debug-log command-str)
+         _ (log/debug command-str)
          res (apply sh "keytool" (str "-" (name cmd))
                     args)]
      (when-not (zero? (:exit res))

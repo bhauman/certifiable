@@ -5,7 +5,8 @@
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
    [certifiable.sha :refer [sha-signature-short]]
-   [certifiable.util :as util :refer [log debug-log]]
+   [certifiable.util :as util]
+   [certifiable.log :as log]
    [certifiable.keytool :refer [keytool keytool?]]
    [certifiable.macos-trust :as macos-trust]
    [certifiable.nss-trust :as nss-trust]
@@ -66,7 +67,7 @@
     (try
       (io/make-parents root-keystore-path)
       ;; gen keypairs
-      (log "Generating root and ca keypairs")
+      (log/info "Generating root and ca keypairs")
       ;; keytool -genkeypair -alias root -dname "cn=Local Network - Development" -validity 10000 -keyalg RSA -keysize 2048 -ext bc:c -keystore root.jks -keypass password -storepass password
       (gen-key-pair {:alias :root
                      :dname (dname opts)
@@ -79,7 +80,7 @@
                      :keypass *password*
                      :keystore ca-keystore-path})
       
-      (log (str "Generating root certificate: " root-pem-path))
+      (log/info (str "Generating root certificate: " root-pem-path))
       ;; generate root certificate
       ;; keytool -exportcert -rfc -keystore root.jks -alias root -storepass password > root.pem
       (->>
@@ -93,7 +94,7 @@
       ;; generate a certificate for ca signed by root (root -> ca)
       ;; keytool -keystore ca.jks -storepass password -certreq -alias ca \
       ;; | keytool -keystore root.jks -storepass password -gencert -alias root -ext bc=0 -ext san=dns:ca -rfc > ca.pem
-      (log "Generating ca certificate signed by root")
+      (log/info "Generating ca certificate signed by root")
       (->> (keytool :certreq
                     {:keystore ca-keystore-path
                      :storepass *password*
@@ -111,7 +112,7 @@
       
     ;; import ca cert chain into ca.jks
 
-      (log "Importing root and ca chain into ca.jks keystore")
+      (log/info "Importing root and ca chain into ca.jks keystore")
       ;; keytool -keystore ca.jks -storepass password -importcert -trustcacerts -noprompt -alias root -file root.pem
       (keytool :importcert [:keystore ca-keystore-path
                             :storepass *password*
@@ -127,7 +128,7 @@
                             :file ca-pem-path})
       (finally
         (.delete root-keystore-path)
-        (log (str "Deleted trusted root certificate keys: " root-keystore-path))))))
+        (log/info (str "Deleted trusted root certificate keys: " root-keystore-path))))))
 
 
 (defn domains-and-ips->san [{:keys [domains ips]}]
@@ -149,7 +150,7 @@
       ;; generate private keys (for server)
       
       ;; keytool -genkeypair -alias server -dname cn=server -validity 10000 -keyalg RSA -keysize 2048 -keystore my-keystore.jks -keypass password -storepass password
-      (log "Generate private keys for server")
+      (log/info "Generate private keys for server")
       (gen-key-pair {:alias :server
                      :dname "cn=CertifiableLeafCert" 
                      :keystore server-keystore-path})
@@ -158,7 +159,7 @@
       
       ;; keytool -keystore my-keystore.jks -storepass password -certreq -alias server \
       ;; | keytool -keystore ca.jks -storepass password -gencert -alias ca -ext ku:c=dig,keyEnc -ext "san=dns:localhost,ip:127.0.0.1" -ext eku=sa,ca -rfc > server.pem
-      (log "Generate a certificate for server signed by ca")
+      (log/info "Generate a certificate for server signed by ca")
       (->> (keytool :certreq {:keystore server-keystore-path
                               :storepass *password*
                               :alias :server})
@@ -175,7 +176,7 @@
            (spit server-pem-path))
       
       ;; import server cert chain into my-keystore.jks
-      (log (str "Importing complete chain into keystore at: " server-keystore-path))
+      (log/info (str "Importing complete chain into keystore at: " server-keystore-path))
       ;; keytool -keystore my-keystore.jks -storepass password -importcert -trustcacerts -noprompt -alias root -file root.pem
       
       (keytool :importcert [:keystore server-keystore-path
@@ -201,8 +202,8 @@
         (.delete ca-keystore-path)
         (.delete ca-pem-path)
         (.delete server-pem-path)
-        (log (str "Deleted intermediate certificate authority keys: " ca-keystore-path))))
-    (log (str  "Generated Java Keystore file: " server-keystore-path))))
+        (log/info (str "Deleted intermediate certificate authority keys: " ca-keystore-path))))
+    (log/info (str  "Generated Java Keystore file: " server-keystore-path))))
 
 
 (defn stable-name [{:keys [keystore-path domains ips] :as opts}]
@@ -233,7 +234,7 @@
 
 (defn emit-keystore [{:keys [keystore-path stable-name]}]
   (when keystore-path
-    (log "Outputing Java Keystore to:" (str keystore-path))
+    (log/info "Outputing Java Keystore to:" (str keystore-path))
     (io/copy
      (io/file *ca-dir* stable-name *server-keystore-name*)
      (io/file keystore-path))))
@@ -245,6 +246,8 @@
   (macos-trust/install-trust! pem-path)
   (nss-trust/install-trust! pem-path))
 
+#_(defn final-instructions [])
+
 (defn create-dev-certificate-jks [{:keys [keystore-path domains ips] :as opts}]
   (let [opts (merge {:domains ["localhost" "www.localhost"]
                      :ips ["127.0.0.1"]}
@@ -253,7 +256,7 @@
         opts (assoc opts :stable-name stable-name')]
     (if-not (keytool?)
       (do
-        (log "ERROR: Can not find keytool Java command.")
+        (log/info "ERROR: Can not find keytool Java command.")
         (println "Please check your Java installation and ensure that keytool is on your path."))
       (do
         (if-not (dev-cert-exists? opts)
@@ -262,7 +265,7 @@
               (emit-meta-data opts)
               (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*)))
           (do
-            (log (str "Root certificate and keystore already exists for " (:stable-name opts)))
+            (log/info (str "Root certificate and keystore already exists for " (:stable-name opts)))
             (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*))))
         ;; TODO print import instructions
         (emit-keystore opts)
@@ -300,29 +303,34 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
        (string/join \newline)))
 
 (defn -main [& args]
-  (let [options (parse-opts args cli-options)
-        err? (or (:errors options)
-                 (not-empty (:arguments options)))]
-    (binding [util/*debug* (:verbosity (:options options))
-              *out* *err*]
-      (debug-log (str "Args:\n"
-                      (with-out-str (clojure.pprint/pprint (:options options)))))
-      (doseq [err (:errors options)]
-        (println err))
-      (doseq [arg (:arguments options)]
-        (println "Unknown option:" arg))
-      (cond
-        (or err?
-            (-> options :options :help))
-        (println (usage (:summary options)))
+  (try
+    (let [options (parse-opts args cli-options)
+          err? (or (:errors options)
+                   (not-empty (:arguments options)))]
+      (binding [log/*log-level* (if (:verbosity (:options options))
+                                  :all
+                                  :info)
+                *out* *err*]
         
-        (-> options :options :reset)
-        (do (clean!)
-            (log "Resetting: Deleting all certificates!"))
-        :else
-        (do
-          (create-dev-certificate-jks (:options options))
-          (shutdown-agents))))))
+        (log/debug (str "Args:\n"
+                        (with-out-str (clojure.pprint/pprint (:options options)))))
+        (doseq [err (:errors options)]
+          (println err))
+        (doseq [arg (:arguments options)]
+          (println "Unknown option:" arg))
+        (cond
+          (or err?
+              (-> options :options :help))
+          (println (usage (:summary options)))
+
+          (-> options :options :reset)
+          (do (clean!)
+              (log/info "Resetting: Deleting all certificates!"))
+          :else
+          (do
+            (create-dev-certificate-jks (:options options))))))
+    (finally
+      (shutdown-agents))))
 
 ;; keytool -importkeystore -srckeystore /Users/bhauman/.certifiable_dev_certs/certificate-authority.jks -destkeystore /Users/bhauman/.certifiable_dev_certs/certificate-authority.jks -deststoretype pkcs12
 

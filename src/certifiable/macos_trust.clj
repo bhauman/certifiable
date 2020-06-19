@@ -2,7 +2,8 @@
   (:require
    [clojure.java.io :as io]
    [clojure.java.shell :refer [sh]]
-   [certifiable.util :as util]))
+   [certifiable.util :as util]
+   [certifiable.log :as log]))
 
 ;; add the cert to the keychain
 ;; security add-trusted-cert -d -r trustRoot -k ~/Library/Keychains/login.keychain-db root.pem
@@ -54,18 +55,18 @@
 
 (defn install-trust! [pem-path]
   (when (= :macos (util/os?))
-    (util/log "Attempting to add root certificate to MacOS login keychain.")
+    (log/info "Attempting to add root certificate to MacOS login keychain.")
     (if-not security-command?
-      (util/log "\"security\" command is not available so this certificate will not be installed to MacOS login keychain.")
+      (log/info "\"security\" command is not available so this certificate will not be installed to MacOS login keychain.")
       (let [dname (pr-str (subs (.getName (.getIssuerDN (util/certificate pem-path))) 3))]
         (if (has-cert? pem-path)
-          (util/log "Cert" dname "already present in MacOS login keychain.")
+          (log/info "Cert" dname "already present in MacOS login keychain.")
           (if (add-cert pem-path)
-            (util/log "Cert" dname "successfully added to MacOS login keychain!")
+            (log/info "Cert" dname "successfully added to MacOS login keychain!")
             ;; TODO add output from certutil to inform why it failed?
             (do
-              (util/log "FAILED adding" dname "to MacOS login keychain!")
-              (util/log "Add the certifcate manually"))))))))
+              (log/info "FAILED adding" dname "to MacOS login keychain!")
+              (log/info "Add the certifcate manually"))))))))
 
 #_ (def pem-path (io/file (System/getProperty "user.home") "_certifiable_certs/localhost-1d070e4/dev-root-trust-this.pem"))
 

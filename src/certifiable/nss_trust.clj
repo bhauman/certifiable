@@ -1,6 +1,7 @@
 (ns certifiable.nss-trust
   (:require [clojure.java.io :as io]
             [certifiable.util :as util]
+            [certifiable.log :as log]
             [clojure.java.shell :as shell :refer [sh]]))
 
 ;; currently this only works on OSX
@@ -80,20 +81,20 @@
 
 (defn install-trust! [pem-path]
   (when (= :macos (util/os?))
-    (util/log "Attempting to add root certificate to Firefox nss trust store.")
+    (log/info "Attempting to add root certificate to Firefox nss trust store.")
     (if-not *certutil-path*
       (do
-        (util/log "Warning \"certutil\" command is not available so this certificate will not be installed for Firefox")
-        (util/log "Please install \"certutil\" with \"brew install nss\""))
+        (log/info "Warning \"certutil\" command is not available so this certificate will not be installed for Firefox")
+        (log/info "Please install \"certutil\" with \"brew install nss\""))
       (let [uniq-name (pr-str (ca-uniq-name pem-path))]
         (if (has-cert? pem-path)
-          (util/log "Cert" uniq-name "already present in Firefox trust store.")
+          (log/info "Cert" uniq-name "already present in Firefox trust store.")
           (if (add-cert pem-path)
-            (util/log "Cert" uniq-name "successfully added to Firefox trust store!")
+            (log/info "Cert" uniq-name "successfully added to Firefox trust store!")
             ;; TODO add output from certutil to inform why it failed?
             (do
-              (util/log "FAILED adding" uniq-name "to Firefox trust store!")
-              (util/log "Add the certifcate manually"))))))))
+              (log/info "FAILED adding" uniq-name "to Firefox trust store!")
+              (log/info "Add the certifcate manually"))))))))
 
 #_(def pem-path (io/file (System/getProperty "user.home") "_certifiable_certs/localhost-1d070e4/dev-root-trust-this.pem"))
 
