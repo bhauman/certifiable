@@ -4,6 +4,7 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [clojure.tools.cli :refer [parse-opts]]
+   [clojure.edn :as edn]
    [certifiable.sha :refer [sha-signature-short]]
    [certifiable.util :as util]
    [certifiable.log :as log]
@@ -13,6 +14,8 @@
    [clojure.pprint])
   (:gen-class))
 
+;; this isn't hidden so that users easily add trust manually and dont' have
+;; to navigate hidden files from inside a gui file system explorer
 (def ^:dynamic *ca-dir* (io/file (System/getProperty "user.home") "_certifiable_certs"))
 
 (def ^:dynamic *password* "password")
@@ -224,7 +227,7 @@
 (defn meta-data [{:keys [domains ips stable-name]}]
   {:created (java.util.Date.)
    :domains domains
-   :name stable-name
+   :stable-name stable-name
    :ips ips})
 
 (defn info-file [opts]
@@ -250,6 +253,26 @@
      (macos-trust/install-trust! pem-path))
    :firefox-trust-installed
    (nss-trust/install-trust! pem-path)})
+
+(defn remove-trust [pem-path]
+  (when (and (= :macos (util/os?))
+             (macos-trust/has-cert? pem-path))
+    (log/info "Removing trust from MacOS keychain for " (str pem-path))
+    (macos-trust/remove-cert pem-path))
+  (if (nss-trust/has-cert? pem-path)
+    (log/info "Removing trust from Firefox NSS trust store for" (str pem-path))
+    (nss-trust/remove-cert pem-path)))
+
+(defn remove-cert [{:keys [stable-name root-pem-path] :as cert-infot}]
+  (remove-trust root-pem-path)
+  (delete-directory (io/file *ca-dir* stable-name)))
+
+(declare list-keystores)
+
+(defn remove-all []
+  (doseq [cert-info (list-keystores *ca-dir*)]
+    (log/info "Removing:" (:stable-name cert-info))
+    (remove-cert cert-info)))
 
 (defn final-instructions [{:keys [keystore-path] :as opts} trust-installed]
   (let [{:keys [server-keystore-path
@@ -332,33 +355,74 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
         options-summary]
        (string/join \newline)))
 
+(defn list-dirs [dir]
+  (let [dir (io/file dir)]
+    (when (.isDirectory dir)
+      (filter
+       #(.isDirectory %)
+       (seq (.listFiles dir))))))
+
+(defn keystore-info [{:keys [stable-name] :as opts}]
+  (let [info-file (info-file opts)
+        data (if (.exists info-file)
+               (try
+                 (edn/read-string (slurp info-file))
+                 (catch Throwable t)))
+        {:keys [root-pem-path server-keystore-path]} (file-paths opts)]
+    (assoc data
+           :root-pem-path (str root-pem-path)
+           :server-keystore-path (str server-keystore-path))))
+
+(defn list-keystores [ca-dir]
+  (mapv keystore-info (map #(hash-map :stable-name %)
+                           (sort (map #(.getName %)
+                                      (list-dirs *ca-dir*))))))
+
+#_(list-keystores *ca-dir*)
+
+(defn list-command [ca-dir]
+  (let [keystores (list-keystores ca-dir)]
+    (if (empty? keystores)
+      (println "No installed keystores found")
+      (println "Keystores found in directory: " (str ca-dir)))
+    (doall
+     (map-indexed
+      #(println (format "%d. %s  [%s]"
+                        (inc %1) (:stable-name %2)
+                        (string/join ", " (concat (sort (:domains %2))
+                                                  (sort (:ips %2)))) ))
+      (list-keystores ca-dir)))))
+
 (defn -main [& args]
   (try
     (let [options (parse-opts args cli-options)
           err? (or (:errors options)
                    (not-empty (:arguments options)))]
+      (log/debug (str "Args:\n"
+                      (with-out-str (clojure.pprint/pprint (:options options)))))
       (binding [log/*log-level* (if (:verbosity (:options options))
                                   :all
                                   :info)
                 *out* *err*]
-        
-        (log/debug (str "Args:\n"
-                        (with-out-str (clojure.pprint/pprint (:options options)))))
-        (doseq [err (:errors options)]
-          (println err))
-        (doseq [arg (:arguments options)]
-          (println "Unknown option:" arg))
         (cond
-          (or err?
-              (-> options :options :help))
-          (println (usage (:summary options)))
-
-          (-> options :options :reset)
-          (do (clean!)
-              (log/info "Resetting: Deleting all certificates!"))
+          (= (first (:arguments options)) "list") (list-command *ca-dir*)
           :else
           (do
-            (create-dev-certificate-jks (:options options))))))
+            (doseq [err (:errors options)]
+              (println err))
+              (doseq [arg (:arguments options)]
+                (println "Unknown option:" arg))
+              (cond
+                (or err?
+                    (-> options :options :help))
+                (println (usage (:summary options)))
+                (-> options :options :reset)
+                (do
+                  (log/info "Resetting: Deleting all certificates!")
+                  (remove-all))
+                :else
+                (do
+                  (create-dev-certificate-jks (:options options))))))))
     (finally
       (shutdown-agents))))
 
