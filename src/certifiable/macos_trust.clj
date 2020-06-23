@@ -8,8 +8,11 @@
 ;; add the cert to the keychain
 ;; security add-trusted-cert -d -r trustRoot -k ~/Library/Keychains/login.keychain-db root.pem
 
-(def security-command? (and (= :macos (util/os?))
-                            (util/command-exists? "security")))
+(def security-command?
+  (memoize
+   (fn []
+     (and (= :macos (util/os?))
+          (util/command-exists? "security")))))
 
 (defn macos-login-keychain-dir []
   (let [path (io/file (System/getProperty "user.home") "Library" "Keychains")
@@ -21,7 +24,7 @@
       :else nil)))
 
 (defn security-command [& args]
-  (when security-command?
+  (when (security-command?)
     (apply sh "security" args)))
 
 (defn has-cert? [pem-path]
@@ -56,7 +59,7 @@
 (defn install-trust! [pem-path]
   (when (= :macos (util/os?))
     (log/info "Attempting to add root certificate to MacOS login keychain.")
-    (if-not security-command?
+    (if-not (security-command?)
       (log/info "\"security\" command is not available so this certificate will not be installed to MacOS login keychain.")
       (let [dname (pr-str (subs (.getName (.getIssuerDN (util/certificate pem-path))) 3))]
         (if (has-cert? pem-path)

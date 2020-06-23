@@ -28,19 +28,19 @@
     (.exists (io/file profile-path "cert8.db")) (str "dbm:" profile-path)
     :else nil))
 
-(defn certutil-path []
-  (cond
-    (util/command-exists? "certutil") "certutil"
-    (util/command-exists? "/usr/local/opt/nss/bin/certutil") "/usr/local/opt/nss/bin/certutil"
-    :else (and (util/command-exists? "brew")
-               (when-let [nss-path (:out (sh "brew" "--prefix" "nss"))]
-                 (let [certutil-path (io/file nss-path "bin" "certutil")]
-                   (when (util/command-exists? (str certutil-path))
-                     (str certutil-path)))))))
+(def certutil-path
+  (memoize
+   (fn []
+     (cond
+       (util/command-exists? "certutil") "certutil"
+       (util/command-exists? "/usr/local/opt/nss/bin/certutil") "/usr/local/opt/nss/bin/certutil"
+       :else (and (util/command-exists? "brew")
+                  (when-let [nss-path (:out (sh "brew" "--prefix" "nss"))]
+                    (let [certutil-path' (str (io/file nss-path "bin" "certutil"))]
+                      (when (util/command-exists? certutil-path')
+                        certutil-path'))))))))
 
-(def ^:dynamic *certutil-path* (certutil-path))
-
-(defn certutil-installed? [] *certutil-path*)
+(defn certutil-installed? [] (certutil-path))
 
 (defn ca-uniq-name [pem-path]
   (let [cert (util/certificate pem-path)
@@ -49,7 +49,7 @@
 
 (defn certutil-cmd [& args]
   (when (certutil-installed?)
-    (apply sh *certutil-path* args)))
+    (apply sh (certutil-path) args)))
 
 (defn cert-valid-cmd [prefixed-profile-path uniq-name]
   (certutil-cmd "-V" "-d" prefixed-profile-path "-u" "L" "-n" uniq-name))
@@ -82,7 +82,7 @@
 (defn install-trust! [pem-path]
   (when (= :macos (util/os?))
     (log/info "Attempting to add root certificate to Firefox nss trust store.")
-    (if-not *certutil-path*
+    (if-not (certutil-path)
       (do
         (log/info "Warning \"certutil\" command is not available so this certificate will not be installed for Firefox")
         (log/info "Please install \"certutil\" with \"brew install nss\""))
