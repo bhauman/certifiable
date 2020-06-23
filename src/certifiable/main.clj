@@ -299,7 +299,9 @@
                      :keystore path
                      :key-password *password*})))))
 
-(defn create-dev-certificate-jks [{:keys [keystore-path domains ips] :as opts}]
+(declare keystore-info)
+
+(defn create-dev-certificate-jks [{:keys [keystore-path domains ips print-instructions?] :as opts}]
   (let [opts (merge {:domains ["localhost" "www.localhost"]
                      :ips ["127.0.0.1"]}
                     opts)
@@ -315,13 +317,17 @@
               (generate-jks-for-domain opts)
               (emit-meta-data opts)
               (let [trust-info (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*))]
-                (println (final-instructions opts trust-info))))
+                (when print-instructions?
+                  (println (final-instructions opts trust-info)))
+                (emit-keystore opts)
+                (keystore-info opts)))
           (do
             (log/info (str "Root certificate and keystore already exists for " (:stable-name opts)))
             (let [trust-info (install-to-trust-stores! (io/file *ca-dir* stable-name' *root-pem-name*))]
-              (println (final-instructions opts trust-info)))))
-        ;; TODO print import instructions
-        (emit-keystore opts)
+              (when print-instructions?
+                (println (final-instructions opts trust-info)))
+              (emit-keystore opts)
+              (keystore-info opts))))
         ))))
 
 (def cli-options
@@ -370,6 +376,7 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
                  (catch Throwable t)))
         {:keys [root-pem-path server-keystore-path]} (file-paths opts)]
     (assoc data
+           :password *password*
            :root-pem-path (str root-pem-path)
            :server-keystore-path (str server-keystore-path))))
 
