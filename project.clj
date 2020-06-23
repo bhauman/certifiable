@@ -1,4 +1,4 @@
-(defproject com.bhauman/certifiable "0.0.1-SNAPSHOT"
+(defproject com.bhauman/certifiable "0.0.1"
   :description "Assists in the creation of development SSL certificates and Java Keystore files"
   :url "https://github.com/bhauman/certifiable"
   :license {:name "Eclipse Public License"
@@ -7,7 +7,7 @@
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.0"]]}}
   :deploy-repositories [["releases" :clojars]]
   :aliases {"update-readme-version" ["shell" "sed" "-i" "s/\\\\[certifiable \"[0-9.]*\"\\\\]/[certifiable \"${:version}\"]/" "README.md"]}
-  :release-tasks [["shell" "git" "diff" "--exit-code"]
+  #_:release-tasks #_[["shell" "git" "diff" "--exit-code"]
                   ["change" "version" "leiningen.release/bump-version"]
                   ["change" "version" "leiningen.release/bump-version" "release"]
                   ["changelog" "release"]
