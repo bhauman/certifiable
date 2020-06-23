@@ -11,7 +11,7 @@
 
 (def ^:dynamic *log-level* :info)
 
-(def ^:dynamic *log-fn* println)
+(def ^:dynamic *output-fn* println)
 
 (defn level-tag [level]
   (str "[Certifiable"
@@ -22,23 +22,25 @@
 (defn log* [level & args]
   (when-let [v (log-levels level)]
     (when (<= (log-levels *log-level*) v)
-      (apply *log-fn* (level-tag level)
+      (apply *output-fn* (level-tag level)
              (map str args))
       nil)))
 
+(def ^:dynamic *log-fn* log*)
+
 (defn info [& args]
-  (apply log* :info args))
+  (apply *log-fn* :info args))
 
 (defn debug [& args]
-  (apply log* :debug args))
+  (apply *log-fn* :debug args))
 
 (defn warn [& args]
-  (apply log* :warn args))
+  (apply *log-fn* :warn args))
 
 (defn error [& args]
-  (apply log* :error args))
+  (apply *log-fn* :error args))
 
 (defn fatal [& args]
-  (apply log* :fatal args))
+  (apply *log-fn* :fatal args))
 
 
