@@ -429,7 +429,8 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
                   (remove-all))
                 :else
                 (do
-                  (create-dev-certificate-jks (:options options))))))))
+                  (create-dev-certificate-jks (assoc (:options options)
+                                                     :print-instructions? true))))))))
     (finally
       (shutdown-agents))))
 
