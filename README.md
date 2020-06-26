@@ -1,5 +1,7 @@
 # certifiable
 
+[![Clojars Project](https://img.shields.io/clojars/v/com.bhauman/certifiable.svg)](https://clojars.org/com.bhauman/certifiable)
+
 A helper tool that simplifies the creation of development time SSL
 certificates for use with Java Webservers like Jetty.
 
