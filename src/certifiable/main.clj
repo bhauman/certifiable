@@ -12,6 +12,9 @@
    [certifiable.macos-trust :as macos-trust]
    [certifiable.nss-trust :as nss-trust]
    [clojure.pprint])
+  (:import [java.net
+            URL
+            InetAddress])
   (:gen-class))
 
 ;; this isn't hidden so that users easily add trust manually and dont' have
@@ -151,6 +154,9 @@
       (assert (.exists root-pem-path))
       (assert (.exists ca-keystore-path))
       (assert (.exists ca-pem-path))
+      (assert (or (not-empty domains)
+                  (not-empty ips))
+              "Must supply hostnames or ips")
       ;; generate private keys (for server)
       
       ;; keytool -genkeypair -alias server -dname cn=server -validity 10000 -keyalg RSA -keysize 2048 -keystore my-keystore.jks -keypass password -storepass password
@@ -263,16 +269,20 @@
     (log/info "Removing trust from Firefox NSS trust store for" (str pem-path))
     (nss-trust/remove-cert pem-path)))
 
-(defn remove-cert [{:keys [stable-name root-pem-path] :as cert-infot}]
+(defn remove-cert [{:keys [stable-name root-pem-path] :as cert-info}]
   (remove-trust root-pem-path)
-  (delete-directory (io/file *ca-dir* stable-name)))
+  (when stable-name
+    (delete-directory (io/file *ca-dir* stable-name))))
 
 (declare list-keystores)
 
 (defn remove-all []
-  (doseq [cert-info (list-keystores *ca-dir*)]
-    (log/info "Removing:" (:stable-name cert-info))
-    (remove-cert cert-info)))
+  (try
+    (doseq [cert-info (list-keystores *ca-dir*)]
+      (log/info "Removing:" (:stable-name cert-info))
+      (remove-cert cert-info))
+    (finally
+      (delete-directory *ca-dir*))))
 
 (defn final-instructions [{:keys [keystore-path] :as opts} trust-installed]
   (let [{:keys [server-keystore-path
@@ -331,21 +341,8 @@
         ))))
 
 (def cli-options
-  [["-d" "--domains DOMAINS" "A comma seperated list of domains to be included in certificate"
-    :default ["localhost" "www.localhost"]
-    :default-desc "localhost,www.localhost"
-    :parse-fn #(mapv string/trim (string/split % #","))]
-   ["-i" "--ips IPS" "A comma seperated list of IP addresses to be included in certificate"
-    :default ["127.0.0.1"]
-    :default-desc "127.0.0.1"
-    :parse-fn #(mapv string/trim (string/split % #","))
-    :validate [#(every?
-                 (partial re-matches #"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
-                 %)
-               "Must be a comma seperated list of IP address"]]
-   ["-o" "--output FILE" "The path and filename of the jks output file"
+  [["-o" "--output FILE" "The path and filename of the jks output file"
     :id :keystore-path]
-   [nil "--reset" "Start from scratch, deletes root and certificate authority certs"]
    ["-h" "--help"]
    ["-v" nil "verbose - outputs more info about keytool calls"
     :id :verbosity
@@ -355,7 +352,19 @@
   (->> ["Generates a local developement Java keystore that can be used
 to support SSL/HTTPS connections in a Java Server like Jetty."
         ""
-        "Usage: clj -m certifiable.main [options]"
+        "Usage: clj -m certifiable.main [options] [command] [command args]"
+        ""
+        "Available Commands: (if no command is supplied \"create\" is the default)"
+
+" create [hosts and ips]  : takes a list of hostnames and ips and creates a keystore
+                           if no hostnames or ips supplied defaults to 
+                           localhost www.locahost 127.0.0.1"
+        " list                    : lists the current keystores"
+        " info [name/list idx]    : displays info on the given store name or list index"
+        " reset                   : deletes all keystores and removes the trust for them"
+        " remove [name/list idx]  : deletes the given keystore and removes trust for it"
+        " help                    : prints out these instructions"
+        ""
         ""
         "Options:"
         options-summary]
@@ -400,6 +409,43 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
                                                   (sort (:ips %2)))) ))
       (list-keystores ca-dir)))))
 
+(defn ip-address? [x]
+  (let [[host ip]
+        (try
+          (string/split (str (InetAddress/getByName x))
+                        #"/")
+          (catch Throwable t))]
+    (when (and (string/blank? host)
+               ip
+               (not (string/blank? ip)))
+      ip)))
+
+(defn hostname? [x]
+  (and
+   (re-matches #"[a-zA-Z\d].*" x)
+   (= x (.getHost (URL. (str "http://" x))))
+   x))
+
+(defn parse-domain-ip-arguments [args]
+  (not-empty
+   (reduce 
+    (fn [accum x]
+      (if-let [ip (ip-address? x)]
+        (update accum :ips conj ip)
+        (if (hostname? x)
+          (update accum :domains conj x)
+          (update accum ::not-hostname-or-ip-error conj x))))
+    {}
+    args)))
+
+(defn find-cert-info [name-or-idx]
+  (let [keystores (list-keystores *ca-dir*)]
+    (or (first (filter #(= (:stable-name %) name-or-idx) keystores))
+        (when-let [idx (try (Integer/parseInt name-or-idx)
+                            (catch Throwable t))]
+          (try (nth (list-keystores *ca-dir*) (dec idx))
+               (catch Throwable t))))))
+
 (defn -main [& args]
   (try
     (let [options (parse-opts args cli-options)
@@ -411,26 +457,56 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
                                   :all
                                   :info)
                 *out* *err*]
-        (cond
-          (= (first (:arguments options)) "list") (list-command *ca-dir*)
-          :else
-          (do
-            (doseq [err (:errors options)]
-              (println err))
+        (let [cmd? (first (:arguments options))]
+          (cond
+            (or (-> options :options :help)
+                (= cmd? "help"))
+            (println (usage (:summary options)))
+            (nil? cmd?)
+            (create-dev-certificate-jks (assoc (:options options)
+                                               :print-instructions? true))
+            (= cmd? "list") (list-command *ca-dir*)
+            (= cmd? "info")
+            (if-let [cert-stable-name (second (:arguments options))]
+              (if-let [info (find-cert-info cert-stable-name)]
+                (clojure.pprint/pprint info)
+                (log/info (format "Cert %s not found" cert-stable-name)))
+              (log/info "You must supply a the name to get info. Try the \"list\" command"))
+            (= cmd? "remove")
+            (if-let [cert-stable-name (second (:arguments options))]
+              (if-let [info (find-cert-info cert-stable-name)]
+                (do
+                  (log/info (format "Removing %s!" (:stable-name info)))
+                  (remove-cert info))
+                (log/info (format "Cert %s not found" cert-stable-name)))
+              (log/info "You must supply a the name to get info. Try the \"list\" command"))
+            (= cmd? "reset")
+            (do
+              (log/info "Resetting: Deleting all certificates!")
+              (remove-all))
+            (= cmd? "create")
+            (let [domains-and-ips-opts (parse-domain-ip-arguments (filter string? (rest (:arguments options))))]
+              (if-let [bad-names (::not-hostname-or-ip-error domains-and-ips-opts)]
+                (do
+                  (log/info "All arguments to create must be valid hostnames or ip addresses")
+                  (doseq [n bad-names]
+                    (log/info (str n " is not a hostname or ip address"))
+                    (when (.startsWith n "*")
+                      (log/info "Wildcard hostnames are not allowed"))))
+                (create-dev-certificate-jks (assoc (merge (:options options) domains-and-ips-opts)
+                                                   :print-instructions? true))))
+            (or
+             (not-empty (:errors options))
+             (not-empty (:arguments options)))
+            (do
+              (doseq [err (:errors options)]
+                (println err))
               (doseq [arg (:arguments options)]
                 (println "Unknown option:" arg))
-              (cond
-                (or err?
-                    (-> options :options :help))
-                (println (usage (:summary options)))
-                (-> options :options :reset)
-                (do
-                  (log/info "Resetting: Deleting all certificates!")
-                  (remove-all))
-                :else
-                (do
-                  (create-dev-certificate-jks (assoc (:options options)
-                                                     :print-instructions? true))))))))
+              (println (usage (:summary options))))
+            :else
+            (do
+              (println (usage (:summary options))))))))
     (finally
       (shutdown-agents))))
 
@@ -440,3 +516,7 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
 
 ;; converting from a 
 ;; keytool -importkeystore -srckeystore localhost.p12 -srcstoretype  pkcs12 -destkeystore dev-localhost.jks -deststoretype jks
+
+
+
+
