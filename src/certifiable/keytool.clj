@@ -1,16 +1,18 @@
 (ns certifiable.keytool
   (:require [clojure.java.shell :refer [sh]]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [certifiable.util :as util]
             [certifiable.log :as log]))
 
 (def keytool-cmd (memoize
                   (fn []
-                    (if (= (util/os?) :windows)
-                      (and (util/command-exists? "keytool.exe")
-                           "keytool.exe")
-                      (and (util/command-exists? "keytool")
-                           "keytool")))))
+                    (let [base-path (io/file (System/getProperty "java.home") "bin")
+                          keytool-path (str (io/file base-path "keytool"))
+                          keytool-exe-path (str (io/file base-path "keytool.exe"))
+                          paths (cond-> (list keytool-path)
+                                  (= (util/os?) :windows) (conj keytool-exe-path))]
+                      (first (filter util/command-exists? paths))))))
 
 (def keytool-keys #{:rfc :noprompt :keystore :ext :keypass :dname :file :storepass
                     :alias :trustcacerts :keyalg :keysize :validity})
