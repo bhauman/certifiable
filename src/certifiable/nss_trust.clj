@@ -2,7 +2,8 @@
   (:require [clojure.java.io :as io]
             [certifiable.util :as util]
             [certifiable.log :as log]
-            [clojure.java.shell :as shell :refer [sh]]))
+            [clojure.java.shell :as shell :refer [sh]])
+  (:import [java.io File]))
 
 ;; currently this only works on OSX
 
@@ -15,11 +16,11 @@
   (io/file (System/getProperty "user.home") "Library/Application Support/Firefox/Profiles"))
 
 (defn firefox-profiles []
-  (when-let [dir (firefox-profile-dir (util/os?))]
+  (when-let [dir ^File (firefox-profile-dir (util/os?))]
     (and (.exists dir)
          (map io/file
               (filter
-               #(.isDirectory %)
+               #(.isDirectory ^File %)
                (.listFiles dir))))))
 
 (defn prefix-profile-path [profile-path]

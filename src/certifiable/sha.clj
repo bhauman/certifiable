@@ -14,7 +14,7 @@
 (defn sha-signature [s]
   (let [md (MessageDigest/getInstance "SHA-256")]
     (.reset md)
-    (.update md (.getBytes s StandardCharsets/UTF_8))
+    (.update md (.getBytes ^String s StandardCharsets/UTF_8))
     (signature md)))
 
 (defn sha-signature-short [s]

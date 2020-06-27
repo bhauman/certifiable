@@ -14,7 +14,8 @@
    [clojure.pprint])
   (:import [java.net
             URL
-            InetAddress])
+            InetAddress]
+           [java.io File])
   (:gen-class))
 
 ;; this isn't hidden so that users easily add trust manually and dont' have
@@ -59,14 +60,14 @@
 
 (defn delete-directory [f]
   (doseq [f (reverse (file-seq f))]
-    (when (.exists f)
-      (.delete f))))
+    (when (.exists ^File f)
+      (.delete ^File f))))
 
 (defn clean! []
   (delete-directory (io/file *ca-dir*)))
 
 (defn gen-third-party-ca [opts]
-  (let [{:keys [root-keystore-path
+  (let [{:keys [^File root-keystore-path
                 ca-keystore-path 
                 root-pem-path 
                 ca-pem-path]} (file-paths opts)]
@@ -145,11 +146,11 @@
                        (map #(str "ip:" %) ips))))
 
 (defn generate-jks-for-domain [{:keys [keystore-path domains ips] :as opts}]
-  (let [{:keys [ca-keystore-path 
-                server-keystore-path
-                root-pem-path 
-                ca-pem-path
-                server-pem-path]} (file-paths opts)]
+  (let [{:keys [^File ca-keystore-path
+                ^File server-keystore-path
+                ^File root-pem-path
+                ^File ca-pem-path
+                ^File server-pem-path]} (file-paths opts)]
     (try
       (assert (.exists root-pem-path))
       (assert (.exists ca-keystore-path))
@@ -227,8 +228,8 @@
 
 (defn dev-cert-exists? [opts]
   (let [{:keys [root-pem-path server-keystore-path]} (file-paths opts)]
-    (and (.exists root-pem-path)
-         (.exists server-keystore-path))))
+    (and (.exists ^File root-pem-path)
+         (.exists ^File server-keystore-path))))
 
 (defn meta-data [{:keys [domains ips stable-name]}]
   {:created (java.util.Date.)
@@ -374,11 +375,11 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
   (let [dir (io/file dir)]
     (when (.isDirectory dir)
       (filter
-       #(.isDirectory %)
+       #(.isDirectory ^File %)
        (seq (.listFiles dir))))))
 
 (defn keystore-info [{:keys [stable-name] :as opts}]
-  (let [info-file (info-file opts)
+  (let [info-file ^File (info-file opts)
         data (if (.exists info-file)
                (try
                  (edn/read-string (slurp info-file))
@@ -391,7 +392,7 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
 
 (defn list-keystores [ca-dir]
   (mapv keystore-info (map #(hash-map :stable-name %)
-                           (sort (map #(.getName %)
+                           (sort (map #(.getName ^File %)
                                       (list-dirs *ca-dir*))))))
 
 #_(list-keystores *ca-dir*)
@@ -491,7 +492,7 @@ to support SSL/HTTPS connections in a Java Server like Jetty."
                   (log/info "All arguments to create must be valid hostnames or ip addresses")
                   (doseq [n bad-names]
                     (log/info (str n " is not a hostname or ip address"))
-                    (when (.startsWith n "*")
+                    (when (.startsWith ^String n "*")
                       (log/info "Wildcard hostnames are not allowed"))))
                 (create-dev-certificate-jks (assoc (merge (:options options) domains-and-ips-opts)
                                                    :print-instructions? true))))

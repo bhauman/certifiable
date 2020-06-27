@@ -5,7 +5,7 @@
            [java.security MessageDigest]
            [java.nio.charset StandardCharsets]))
 
-(defn certificate [pem-path]
+(defn certificate ^X509Certificate [pem-path]
   (let [is (io/input-stream (io/file pem-path))]
     (.generateCertificate (CertificateFactory/getInstance "X.509") is)))
 
@@ -15,7 +15,7 @@
       (.append sb (format "%02x" e)))
     (str sb)))
 
-(defn cert-sha-1-fingerprint [cert]
+(defn cert-sha-1-fingerprint [^X509Certificate cert]
   (->> (.getEncoded cert)
        (.digest (MessageDigest/getInstance  "SHA-1"))
        bytes->hex-str))
@@ -30,7 +30,7 @@
   (let [os-name
         (-> (System/getProperty "os.name" "generic")
             (.toLowerCase java.util.Locale/ENGLISH))
-        has? #(>= (.indexOf %1 %2) 0)]
+        has? #(>= (.indexOf ^String %1 ^String %2) 0)]
     (cond
       (or (has? os-name "mac")
           (has? os-name "darwin")) :macos
