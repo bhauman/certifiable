@@ -1,4 +1,4 @@
-(defproject com.bhauman/certifiable "0.0.6"
+(defproject com.bhauman/certifiable "0.0.7"
   :description "Assists in the creation of development SSL certificates and Java Keystore files"
   :url "https://github.com/bhauman/certifiable"
   :license {:name "Eclipse Public License"

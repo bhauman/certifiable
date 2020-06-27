@@ -24,13 +24,13 @@ Java is installed then `keytool` will be available as well.
 [Leiningen](https://leiningen.org) dependency information:
 
 ```clj
-[com.bhauman/certifiable "0.0.6"]
+[com.bhauman/certifiable "0.0.7"]
 ```
 
 [clj/deps.edn](https://clojure.org/guides/deps_and_cli) information:
 
 ```clj
-{:deps {com.bhauman/certifiable {:mvn/version "0.0.6"}}}
+{:deps {com.bhauman/certifiable {:mvn/version "0.0.7"}}}
 ```
 
 This tool was built based on this [excellent shell script](https://gist.github.com/granella/01ba0944865d99227cf080e97f4b3cb6).
@@ -67,7 +67,7 @@ Make sure you have the [Clojure tools installed](https://clojure.org/guides/gett
 Then to generate a certificate execute the following:
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.6"}}}' -m certifiable.main
+$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.7"}}}' -m certifiable.main
 
 [Certifiable] Generating root and ca keypairs
 [Certifiable] Generating root certificate: ~/_certifiable_certs/localhost-1d070e4/dev-root-trust-this.pem
@@ -137,7 +137,7 @@ domain (I.E. `example.test`) first make sure you have the domain added it to you
 `/etc/hosts` file. After you have done that you can call:
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.6"}}}' -m certifiable.main create example.test localhost 127.0.0.2
+$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.7"}}}' -m certifiable.main create example.test localhost 127.0.0.2
 ```
 
 That command will generate a new local development certifiable with a
@@ -149,7 +149,7 @@ custom the Subject Alternative Name section that includes both
 The `list` command will list available keystores
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.6"}}}' -m certifiable.main list
+$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.7"}}}' -m certifiable.main list
 Keystores found in directory:  /Users/bhauman/_certifiable_certs
 1. localhost-1d070e4  [localhost, www.localhost, 127.0.0.1]
 2. localhost-8464661  [localhost, 127.0.0.1]
@@ -160,7 +160,7 @@ You can get more info on a specific cert with the `info` command which
 takes and index from the list command or the name of the keystore as an arg.
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.6"}}}' -m certifiable.main info 1
+$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.7"}}}' -m certifiable.main info 1
 {:created #inst "2020-06-26T17:13:54.285-00:00",
  :domains ["localhost" "www.localhost"],
  :stable-name "localhost-1d070e4",
@@ -193,7 +193,7 @@ If you would like to output `.jks` file to a certain path you can
 supply a `-o` or `--output` option like so:
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.6"}}}' -m certifiable.main -o dev-example.jks create
+$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.7"}}}' -m certifiable.main -o dev-example.jks create
 ```
 
 ### Debugging
@@ -208,7 +208,7 @@ If you get to a point where things aren't working you can use the
 and allow you to start from scratch.
 
 ```sh
-$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.6"}}}' -m certifiable.main reset
+$ clj -Sdeps '{:deps {com.bhauman/certifiable {:mvn/version "0.0.7"}}}' -m certifiable.main reset
 ```
 
 ### Help 
