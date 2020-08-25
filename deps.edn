@@ -1,1 +1,2 @@
-{:deps {org.clojure/tools.cli {:mvn/version "1.0.194"}}}
+{:deps {org.clojure/tools.cli {:mvn/version "1.0.194"}}
+ :aliases {:main {:main-opts ["-m" "certifiable.main"]}}}
